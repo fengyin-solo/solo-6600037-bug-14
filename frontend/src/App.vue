@@ -39,23 +39,18 @@
         </div>
         <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 text-sm">
           <h3 class="text-sm font-bold text-slate-400 mb-3">理论公式</h3>
-          <div class="space-y-2 text-xs text-slate-400">
-            <div v-if="store.currentExperiment === 'double'" class="bg-slate-900 rounded p-2">
-              <div class="text-cyan-400 font-bold">双缝干涉</div>
-              <div>亮纹: y = kλL/d (k=0,±1,±2...)</div>
-              <div>条纹间距: Δy = λL/d</div>
-              <div class="text-yellow-400 mt-1">Δy = {{ store.result.fringe?.toFixed(2) }} mm</div>
-            </div>
-            <div v-if="store.currentExperiment === 'single'" class="bg-slate-900 rounded p-2">
-              <div class="text-cyan-400 font-bold">单缝衍射</div>
-              <div>暗纹: a·sinθ = kλ</div>
-              <div>中央亮纹宽: 2λL/a</div>
-              <div class="text-yellow-400 mt-1">中央宽 = {{ store.result.centralWidth?.toFixed(2) }} mm</div>
-            </div>
-            <div v-if="store.currentExperiment === 'newton'" class="bg-slate-900 rounded p-2">
-              <div class="text-cyan-400 font-bold">牛顿环</div>
-              <div>暗环半径: r = √(nλR)</div>
-              <div>R: 曲率半径</div>
+          <div class="text-xs text-slate-400">
+            <div class="bg-slate-900 rounded p-2">
+              <div class="text-cyan-400 font-bold">{{ store.theory.title }}</div>
+              <div v-for="(line, i) in store.theory.formulas" :key="i">{{ line }}</div>
+              <div v-if="store.theory.valueLabel" class="mt-1">
+                <span v-if="store.theory.status === 'ok'" class="text-yellow-400">
+                  {{ store.theory.valueLabel }} = {{ store.theory.display }} {{ store.theory.unit }}
+                </span>
+                <span v-else class="text-slate-500">
+                  {{ store.theory.valueLabel }} = —（{{ store.theory.statusText }}）
+                </span>
+              </div>
             </div>
           </div>
         </div>
