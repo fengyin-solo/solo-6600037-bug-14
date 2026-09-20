@@ -19,44 +19,37 @@
           <h3 class="text-sm font-bold text-slate-400">参数调节</h3>
           <div>
             <label class="text-xs text-slate-500">波长 λ = {{ store.params.wavelength }} nm</label>
-            <input type="range" min="380" max="780" step="5" v-model.number="store.params.wavelength" @input="store.compute" class="w-full accent-cyan-500" />
+            <input type="range" min="380" max="780" step="5" v-model.number="store.params.wavelength" class="w-full accent-cyan-500" />
             <div class="flex justify-between text-xs mt-0.5">
               <span style="color:#8b5cf6">380</span><span style="color:#06b6d4">500</span><span style="color:#22c55e">550</span><span style="color:#eab308">600</span><span style="color:#dc2626">780</span>
             </div>
           </div>
           <div v-if="store.currentExperiment !== 'newton'">
             <label class="text-xs text-slate-500">缝宽/间距 d = {{ store.params.slitWidth }} μm</label>
-            <input type="range" min="10" max="200" step="5" v-model.number="store.params.slitWidth" @input="store.compute" class="w-full accent-purple-500" />
+            <input type="range" min="10" max="200" step="5" v-model.number="store.params.slitWidth" class="w-full accent-purple-500" />
           </div>
           <div v-if="store.currentExperiment === 'double'">
             <label class="text-xs text-slate-500">缝间距 D = {{ store.params.slitSeparation }} μm</label>
-            <input type="range" min="50" max="500" step="10" v-model.number="store.params.slitSeparation" @input="store.compute" class="w-full accent-green-500" />
+            <input type="range" min="50" max="500" step="10" v-model.number="store.params.slitSeparation" class="w-full accent-green-500" />
           </div>
           <div>
             <label class="text-xs text-slate-500">屏幕距离 L = {{ store.params.screenDistance }} mm</label>
-            <input type="range" min="100" max="2000" step="50" v-model.number="store.params.screenDistance" @input="store.compute" class="w-full accent-orange-500" />
+            <input type="range" min="100" max="2000" step="50" v-model.number="store.params.screenDistance" class="w-full accent-orange-500" />
           </div>
         </div>
         <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 text-sm">
           <h3 class="text-sm font-bold text-slate-400 mb-3">理论公式</h3>
           <div class="space-y-2 text-xs text-slate-400">
-            <div v-if="store.currentExperiment === 'double'" class="bg-slate-900 rounded p-2">
-              <div class="text-cyan-400 font-bold">双缝干涉</div>
-              <div>亮纹: y = kλL/d (k=0,±1,±2...)</div>
-              <div>条纹间距: Δy = λL/d</div>
-              <div class="text-yellow-400 mt-1">Δy = {{ store.result.fringe?.toFixed(2) }} mm</div>
+            <div v-if="store.theoryView" class="bg-slate-900 rounded p-2">
+              <div class="text-cyan-400 font-bold">{{ store.theoryView.title }}</div>
+              <div v-for="formula in store.theoryView.formulas" :key="formula">{{ formula }}</div>
+              <div v-for="description in store.theoryView.descriptions" :key="description">{{ description }}</div>
+              <div v-if="store.theoryView.status === 'ready' && store.theoryView.showValue && store.theoryView.value !== null" class="text-yellow-400 mt-1">
+                {{ store.theoryView.valueLabel }} = {{ formatTheoryValue(store.theoryView.value, store.theoryView.precision) }} {{ store.theoryView.unit }}
+              </div>
+              <div v-else-if="store.theoryView.status !== 'ready'" class="text-red-400 mt-1">{{ store.theoryView.message }}</div>
             </div>
-            <div v-if="store.currentExperiment === 'single'" class="bg-slate-900 rounded p-2">
-              <div class="text-cyan-400 font-bold">单缝衍射</div>
-              <div>暗纹: a·sinθ = kλ</div>
-              <div>中央亮纹宽: 2λL/a</div>
-              <div class="text-yellow-400 mt-1">中央宽 = {{ store.result.centralWidth?.toFixed(2) }} mm</div>
-            </div>
-            <div v-if="store.currentExperiment === 'newton'" class="bg-slate-900 rounded p-2">
-              <div class="text-cyan-400 font-bold">牛顿环</div>
-              <div>暗环半径: r = √(nλR)</div>
-              <div>R: 曲率半径</div>
-            </div>
+            <div v-else class="bg-slate-900 rounded p-2 text-red-400">暂无理论数据</div>
           </div>
         </div>
       </div>
@@ -104,15 +97,28 @@ function wavelengthToRGB(nm: number): [number, number, number] {
   return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)]
 }
 
+function formatTheoryValue(value: number, precision: number) {
+  return value.toFixed(precision)
+}
+
+function drawEmptyState(ctx: CanvasRenderingContext2D, width: number, height: number, color: string) {
+  ctx.fillStyle = color
+  ctx.font = '14px sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('暂无理论数据', width / 2, height / 2)
+}
+
 function drawPattern() {
   const canvas = patternRef.value
-  if (!canvas || !store.intensityData.length) return
+  if (!canvas) return
   canvas.width = canvas.clientWidth
   canvas.height = 200
   const ctx = canvas.getContext('2d')!
   const W = canvas.width, H = canvas.height
   ctx.fillStyle = 'black'
   ctx.fillRect(0, 0, W, H)
+  if (!store.intensityData.length) return drawEmptyState(ctx, W, H, '#f87171')
   const [r, g, b] = wavelengthToRGB(store.params.wavelength)
   const data = store.intensityData
   for (let x = 0; x < W; x++) {
@@ -126,13 +132,14 @@ function drawPattern() {
 
 function drawIntensity() {
   const canvas = intensityRef.value
-  if (!canvas || !store.intensityData.length) return
+  if (!canvas) return
   canvas.width = canvas.clientWidth
   canvas.height = 200
   const ctx = canvas.getContext('2d')!
   const W = canvas.width, H = canvas.height
   ctx.fillStyle = '#0f172a'
   ctx.fillRect(0, 0, W, H)
+  if (!store.intensityData.length) return drawEmptyState(ctx, W, H, '#f87171')
   const [r, g, b] = wavelengthToRGB(store.params.wavelength)
   const data = store.intensityData
   ctx.beginPath()
@@ -158,11 +165,14 @@ function drawIntensity() {
 
 function drawHeatmap() {
   const canvas = heatmapRef.value
-  if (!canvas || !store.intensityData.length) return
+  if (!canvas) return
   canvas.width = canvas.clientWidth
   canvas.height = 200
   const ctx = canvas.getContext('2d')!
   const W = canvas.width, H = canvas.height
+  ctx.fillStyle = 'black'
+  ctx.fillRect(0, 0, W, H)
+  if (!store.intensityData.length) return drawEmptyState(ctx, W, H, '#f87171')
   const [r, g, b] = wavelengthToRGB(store.params.wavelength)
   const data = store.intensityData
   const imgData = ctx.createImageData(W, H)
